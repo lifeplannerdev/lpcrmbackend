@@ -437,11 +437,18 @@ class BulkLeadCreateSerializer(LeadCreateSerializer):
 
 
 class FollowUpSerializer(serializers.ModelSerializer):
-    is_overdue = serializers.ReadOnlyField()
+    is_overdue      = serializers.ReadOnlyField()
     contact_display = serializers.ReadOnlyField()
+    assigned_to     = UserSimpleSerializer(read_only=True)  # ← nested, not just ID
+    assigned_to_id  = serializers.PrimaryKeyRelatedField(   # ← for writes
+        queryset=User.objects.all(),
+        source='assigned_to',
+        write_only=True,
+        required=False
+    )
 
     class Meta:
-        model = FollowUp
+        model  = FollowUp
         fields = '__all__'
         read_only_fields = [
             'assigned_to',
@@ -450,6 +457,8 @@ class FollowUpSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+        
 
 class FollowUpHistorySerializer(serializers.ModelSerializer):
     class Meta:
