@@ -746,53 +746,46 @@ class TodayLeadsAPI(APIView):
 
 
 
-
 class FollowUpListCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
-        queryset = FollowUp.objects.filter(assigned_to=user)
 
-        # ── Filters ─────────────────────────────────────────────────────────────
-        lead_id      = request.query_params.get('lead')
-        date         = request.query_params.get('date')
-        start_date   = request.query_params.get('start_date')
-        end_date     = request.query_params.get('end_date')
-        status       = request.query_params.get('status')
-        overdue      = request.query_params.get('overdue')
+        # ADMIN/CEO/OPS see all follow-ups; others see only their own
+        if user.role in FULL_ACCESS_ROLES:
+            queryset = FollowUp.objects.all()
+        else:
+            queryset = FollowUp.objects.filter(assigned_to=user)
+
+        # rest of your filters stay exactly the same ...
+        lead_id       = request.query_params.get('lead')
+        date          = request.query_params.get('date')
+        start_date    = request.query_params.get('start_date')
+        end_date      = request.query_params.get('end_date')
+        status        = request.query_params.get('status')
+        overdue       = request.query_params.get('overdue')
         followup_type = request.query_params.get('followup_type')
-        priority     = request.query_params.get('priority')
-        search       = request.query_params.get('search')
+        priority      = request.query_params.get('priority')
+        search        = request.query_params.get('search')
 
-        # FIX: filter by linked lead
         if lead_id:
             queryset = queryset.filter(lead_id=lead_id)
-
         if date:
             queryset = queryset.filter(follow_up_date=date)
-
         if start_date and end_date:
-            queryset = queryset.filter(
-                follow_up_date__range=[start_date, end_date]
-            )
-
+            queryset = queryset.filter(follow_up_date__range=[start_date, end_date])
         if status:
             queryset = queryset.filter(status=status)
-
         if overdue == 'true':
             queryset = queryset.filter(
                 follow_up_date__lt=timezone.now().date(),
                 status='pending'
             )
-
-        # FIX: added missing filters that the frontend sends
         if followup_type:
             queryset = queryset.filter(followup_type=followup_type)
-
         if priority:
             queryset = queryset.filter(priority=priority)
-
         if search:
             queryset = queryset.filter(
                 models.Q(name__icontains=search) |
@@ -800,7 +793,6 @@ class FollowUpListCreateAPIView(APIView):
             )
 
         queryset = queryset.order_by('follow_up_date', 'follow_up_time')
-
         serializer = FollowUpSerializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -812,12 +804,12 @@ class FollowUpListCreateAPIView(APIView):
         return Response(serializer.errors, status=400)
 
 
-
-
 class FollowUpDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, pk, user):
+        if user.role in FULL_ACCESS_ROLES:
+            return get_object_or_404(FollowUp, pk=pk)
         return get_object_or_404(FollowUp, pk=pk, assigned_to=user)
 
     def get(self, request, pk):
@@ -841,15 +833,21 @@ class FollowUpDetailAPIView(APIView):
         return Response({"message": "Deleted successfully"}, status=204)
 
 
+
 class TodayFollowUpsAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         today = timezone.now().date()
-        queryset = FollowUp.objects.filter(
-            assigned_to=request.user,
-            follow_up_date=today
-        )
+
+        # Admin sees all today's follow-ups
+        if request.user.role in FULL_ACCESS_ROLES:
+            queryset = FollowUp.objects.filter(follow_up_date=today)
+        else:
+            queryset = FollowUp.objects.filter(
+                assigned_to=request.user,
+                follow_up_date=today
+            )
 
         serializer = FollowUpSerializer(queryset, many=True)
         return Response(serializer.data)
@@ -860,11 +858,21 @@ class OverdueFollowUpsAPIView(APIView):
 
     def get(self, request):
         today = timezone.now().date()
-        queryset = FollowUp.objects.filter(
-            assigned_to=request.user,
-            follow_up_date__lt=today,
-            status='pending'
-        )
+
+        # Admin sees all overdue follow-ups
+        if request.user.role in FULL_ACCESS_ROLES:
+            queryset = FollowUp.objects.filter(
+                follow_up_date__lt=today,
+                status='pending'
+            )
+        else:
+            queryset = FollowUp.objects.filter(
+                assigned_to=request.user,
+                follow_up_date__lt=today,
+                status='pending'
+            )
 
         serializer = FollowUpSerializer(queryset, many=True)
         return Response(serializer.data)
+
+
