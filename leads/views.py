@@ -1,7 +1,7 @@
 import pandas as pd
 import math
 from datetime import date
-from .models import Lead, ProcessingUpdate, RemarkHistory, LeadAssignment,FollowUp
+from .models import Lead, ProcessingUpdate, RemarkHistory, LeadAssignment,FollowUp,LeadConversionDetail
 from .email_utils import send_conversion_email
 from rest_framework import generics, filters, status
 from rest_framework.pagination import PageNumberPagination
@@ -16,6 +16,11 @@ from django.utils import timezone
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from accounts.models import ActivityLog  
+from utils.pusher import pusher_client, trigger_pusher
+from utils import notify_lead_assigned
+from rest_framework import status
+from django.shortcuts import get_object_or_404
+
 
 from leads.permissions import (
     CanAccessLeads,
@@ -25,6 +30,7 @@ from leads.permissions import (
     FULL_ACCESS_ROLES,
     MANAGER_ROLES,
     EXECUTIVE_ROLES,
+    CanManageConversion,
 )
 
 from .serializers import (
@@ -36,13 +42,9 @@ from .serializers import (
     LeadAssignmentSerializer,
     LeadUpdateSerializer,
     BulkLeadCreateSerializer,
-    FollowUpSerializer
+    FollowUpSerializer,
+    LeadConversionDetailSerializer,
 )
-
-from utils.pusher import pusher_client, trigger_pusher
-from utils import notify_lead_assigned
-from rest_framework import status
-from django.shortcuts import get_object_or_404
 
 
 # ── Helpers
@@ -912,3 +914,88 @@ class OverdueFollowUpsAPIView(APIView):
         return Response(serializer.data)
 
 
+class LeadConversionDetailView(APIView):
+    
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [CanAccessLeads()]
+        return [CanManageConversion()]
+
+    def get(self, request, lead_id):
+        lead = get_object_or_404(Lead, id=lead_id)
+
+        if lead.status != 'CONVERTED':
+            return Response(
+                {'error': 'This lead is not converted yet.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            detail     = lead.conversion_detail
+            serializer = LeadConversionDetailSerializer(detail)
+            return Response(serializer.data)
+        except LeadConversionDetail.DoesNotExist:
+            return Response(
+                {'detail': None, 'message': 'No conversion details filled yet.'},
+                status=status.HTTP_204_NO_CONTENT
+            )
+
+    def post(self, request, lead_id):
+        lead = get_object_or_404(Lead, id=lead_id)
+
+        if lead.status != 'CONVERTED':
+            return Response(
+                {'error': 'Can only add conversion details to a CONVERTED lead.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if hasattr(lead, 'conversion_detail'):
+            return Response(
+                {'error': 'Conversion detail already exists. Use PATCH to update.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = LeadConversionDetailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        detail = serializer.save(lead=lead, updated_by=request.user)
+
+        ActivityLog.objects.create(
+            user=request.user,
+            action='LEAD_UPDATED',
+            entity_type='Lead',
+            entity_id=lead.id,
+            entity_name=lead.name,
+            description=f'Conversion details added for "{lead.name}" by {request.user.get_full_name() or request.user.username}',
+            metadata={
+                'student_name': detail.student_name,
+                'course':       detail.course,
+                'payment_status': detail.payment_status,
+            }
+        )
+
+        return Response(
+            LeadConversionDetailSerializer(detail).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def patch(self, request, lead_id):
+        lead   = get_object_or_404(Lead, id=lead_id)
+        detail = get_object_or_404(LeadConversionDetail, lead=lead)
+
+        serializer = LeadConversionDetailSerializer(
+            detail, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        updated = serializer.save(updated_by=request.user)
+
+        ActivityLog.objects.create(
+            user=request.user,
+            action='LEAD_UPDATED',
+            entity_type='Lead',
+            entity_id=lead.id,
+            entity_name=lead.name,
+            description=f'Conversion details updated for "{lead.name}" by {request.user.get_full_name() or request.user.username}',
+            metadata={'payment_status': updated.payment_status}
+        )
+
+        return Response(LeadConversionDetailSerializer(updated).data)

@@ -372,3 +372,58 @@ class FollowUpHistory(models.Model):
 
     def __str__(self):
         return f"{self.followup} | {self.old_status} → {self.new_status}"
+
+
+
+class LeadConversionDetail(models.Model):
+    PAYMENT_STATUS_CHOICES = [
+        ('PENDING',   'Pending'),
+        ('PARTIAL',   'Partial'),
+        ('COMPLETED', 'Completed'),
+    ]
+
+    lead = models.OneToOneField(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name='conversion_detail'
+    )
+
+    # Student Enrollment Details
+    student_name  = models.CharField(max_length=100)
+    course        = models.CharField(max_length=200)
+    enrollment_id = models.CharField(max_length=50, blank=True, null=True)
+
+    # Joining & Batch Info
+    joining_date  = models.DateField(blank=True, null=True)
+    batch_name    = models.CharField(max_length=100, blank=True, null=True)
+    batch_timing  = models.CharField(max_length=100, blank=True, null=True)
+
+    # Payment Details
+    total_fees     = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    amount_paid    = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='PENDING')
+    payment_notes  = models.TextField(blank=True, null=True)
+
+    # Meeting / Consultation Records
+    meeting_date  = models.DateField(blank=True, null=True)
+    meeting_notes = models.TextField(blank=True, null=True)
+    consulted_by  = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='consultations'
+    )
+
+    # Meta
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='conversion_updates'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Lead Conversion Detail'
+
+    def __str__(self):
+        return f"Conversion detail for {self.lead.name}"

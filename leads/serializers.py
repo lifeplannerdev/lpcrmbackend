@@ -1,9 +1,17 @@
 from rest_framework import serializers
-from .models import Lead, ProcessingUpdate, RemarkHistory, LeadAssignment,FollowUp, FollowUpHistory
 from accounts.models import User
 from django.utils import timezone
 from .permissions import FULL_ACCESS_ROLES, MANAGER_ROLES, EXECUTIVE_ROLES
+from .models import (
+    Lead, 
+    ProcessingUpdate, 
+    RemarkHistory, 
+    LeadAssignment,
+    FollowUp, 
+    FollowUpHistory,
+    LeadConversionDetail
 
+)
 
 # Shared user serializer
 class UserSimpleSerializer(serializers.ModelSerializer):
@@ -439,8 +447,8 @@ class BulkLeadCreateSerializer(LeadCreateSerializer):
 class FollowUpSerializer(serializers.ModelSerializer):
     is_overdue      = serializers.ReadOnlyField()
     contact_display = serializers.ReadOnlyField()
-    assigned_to     = UserSimpleSerializer(read_only=True)  # ← nested, not just ID
-    assigned_to_id  = serializers.PrimaryKeyRelatedField(   # ← for writes
+    assigned_to     = UserSimpleSerializer(read_only=True) 
+    assigned_to_id  = serializers.PrimaryKeyRelatedField(  
         queryset=User.objects.all(),
         source='assigned_to',
         write_only=True,
@@ -464,3 +472,22 @@ class FollowUpHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = FollowUpHistory
         fields = '__all__'
+
+
+
+
+class LeadConversionDetailSerializer(serializers.ModelSerializer):
+    updated_by      = UserSimpleSerializer(read_only=True)
+    consulted_by    = UserSimpleSerializer(read_only=True)
+    consulted_by_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source='consulted_by',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+
+    class Meta:
+        model  = LeadConversionDetail
+        fields = '__all__'
+        read_only_fields = ['lead', 'updated_by', 'created_at', 'updated_at']

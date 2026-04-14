@@ -64,3 +64,12 @@ class CanModifyAllLeads(BasePermission):
             request.user.is_authenticated and
             request.user.role in FULL_ACCESS_ROLES
         )
+
+CONVERSION_ROLES = ['ADMIN', 'OPS', 'CM', 'CEO', 'BUSINESS_HEAD']
+
+class CanManageConversion(BasePermission):
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated and
+            request.user.role in CONVERSION_ROLES
+        )
