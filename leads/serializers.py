@@ -486,8 +486,8 @@ class LeadConversionDetailSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-
+ 
     class Meta:
         model  = LeadConversionDetail
-        fields = '__all__'
+        exclude = ['student_name', 'enrollment_id', 'meeting_date']
         read_only_fields = ['lead', 'updated_by', 'created_at', 'updated_at']
