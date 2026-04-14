@@ -15,6 +15,7 @@ from django.db.models import Count, Q as DQ
 from django.utils import timezone
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
+from accounts.models import ActivityLog  
 
 from leads.permissions import (
     CanAccessLeads,
@@ -127,7 +128,17 @@ class LeadCreateView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        lead = serializer.save()
+        lead = serializer.save(created_by=request.user)
+
+        ActivityLog.objects.create(
+            user=request.user,
+            action='LEAD_CREATED',
+            entity_type='Lead',
+            entity_id=lead.id,
+            entity_name=lead.name,
+            description=f'Lead "{lead.name}" was created by {request.user.get_full_name() or request.user.username}',
+            metadata={'phone': lead.phone, 'source': lead.source}
+        )
 
         if getattr(lead, 'processing_status', None) and lead.processing_status != 'PENDING':
             ProcessingUpdate.objects.create(
@@ -145,14 +156,12 @@ class LeadCreateView(generics.CreateAPIView):
                 assignment_type='PRIMARY',
             )
 
-
         return Response({
             'message': 'Lead created successfully',
             'lead_id': lead.id
         }, status=status.HTTP_201_CREATED)
 
 
-# ── Lead Detail / Update / Delete View
 class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = LeadDetailSerializer
     permission_classes = [CanAccessLeads]
@@ -188,6 +197,20 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
                 notes='Status updated via API'
             )
 
+        if old_status != updated_lead.status:
+            ActivityLog.objects.create(
+                user=request.user,
+                action='LEAD_STATUS_CHANGED',
+                entity_type='Lead',
+                entity_id=updated_lead.id,
+                entity_name=updated_lead.name,
+                description=f'Lead "{updated_lead.name}" status changed from {old_status} → {updated_lead.status}',
+                metadata={
+                    'old_status': old_status,
+                    'new_status': updated_lead.status,
+                }
+            )
+
         if old_status != 'CONVERTED' and updated_lead.status == 'CONVERTED':
             send_conversion_email(updated_lead)
 
@@ -200,7 +223,6 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
         lead = self.get_object()
         user = request.user
 
-        # Allow: Admin OR assigned user OR sub-assigned user
         if (
             user.role not in FULL_ACCESS_ROLES and
             lead.assigned_to != user and
@@ -210,6 +232,20 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
                 {'error': 'You do not have permission to delete this lead'},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        ActivityLog.objects.create(
+            user=request.user,
+            action='LEAD_DELETED',
+            entity_type='Lead',
+            entity_id=lead.id,
+            entity_name=lead.name,
+            description=f'Lead "{lead.name}" was deleted by {request.user.get_full_name() or request.user.username}',
+            metadata={
+                'phone':       lead.phone,
+                'status':      lead.status,
+                'assigned_to': lead.assigned_to.get_full_name() if lead.assigned_to else None,
+            }
+        )
 
         self.perform_destroy(lead)
         return Response(
