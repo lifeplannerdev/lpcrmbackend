@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Penalty,AttendanceDocument
+from .models import Penalty,AttendanceDocument,Candidate
 # Register your models here.
 
 @admin.register(Penalty)
@@ -14,3 +14,5 @@ class AttendanceDocumentAdmin(admin.ModelAdmin):
     list_display = ['name', 'date', 'month', 'uploaded_at']
     list_filter = ['month', 'date']
     search_fields = ['name']
+
+admin.site.register(Candidate)

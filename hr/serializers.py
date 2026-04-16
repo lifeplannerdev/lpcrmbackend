@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Penalty, AttendanceDocument
+from .models import Penalty, AttendanceDocument,Candidate
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -103,3 +103,14 @@ class StaffSerializer(serializers.ModelSerializer):
         elif obj.first_name:
             return obj.first_name
         return obj.username
+
+
+class CandidateSerializer(serializers.ModelSerializer):
+    resume_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Candidate
+        fields = "__all__"
+
+    def get_resume_url(self, obj):
+        return obj.resume.url if obj.resume else None

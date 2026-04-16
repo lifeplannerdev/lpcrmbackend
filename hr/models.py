@@ -44,3 +44,50 @@ class Penalty(models.Model):
 
     def __str__(self):
         return f"{self.user.username if self.user else 'No User'} - {self.month} - ₹{self.amount}"
+
+
+
+class Candidate(models.Model):
+    STATUS_CHOICES = [
+        ("applied", "Applied"),
+        ("interviewed", "Interviewed"),
+        ("selected", "Selected"),
+        ("rejected", "Rejected"),
+    ]
+
+    name = models.CharField(max_length=255)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20, blank=True, null=True)
+
+    position_applied = models.CharField(max_length=255)
+
+    resume = CloudinaryField(
+        resource_type="auto",
+        folder="hr/candidate_resumes/",
+        null=True,
+        blank=True,
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="applied"
+    )
+
+    interview_date = models.DateField(null=True, blank=True)
+
+    notes = models.TextField(blank=True, null=True)
+
+    rating = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Rate candidate out of 10"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} - {self.position_applied} ({self.status})"

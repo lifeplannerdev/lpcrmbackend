@@ -6,29 +6,20 @@ from .models import Penalty, AttendanceDocument
 from .serializers import (
     PenaltySerializer, 
     AttendanceDocumentSerializer, 
-    StaffSerializer
+    StaffSerializer,
+    CandidateSerializer
 )
 from .permissions import IsHR, IsHROrAccountsOrAdmin
 
 User = get_user_model()
 
 
-# ===== PENALTY APIs =====
+# PENALTY APIs 
 
 class PenaltyListCreateAPI(APIView):
-    """
-    List all penalties or create a new penalty
-    Accessible by: HR, Accounts, Admin
-    """
     permission_classes = [IsHROrAccountsOrAdmin]
     
     def get(self, request):
-        """
-        GET /api/penalties/
-        Query params:
-        - month: Filter by month (e.g., "2025-01")
-        - user: Filter by user ID
-        """
         penalties = Penalty.objects.all()
         
         # Filter by month
@@ -53,16 +44,6 @@ class PenaltyListCreateAPI(APIView):
         })
     
     def post(self, request):
-        """
-        POST /api/penalties/
-        Body: {
-            "user": <user_id>,
-            "act": "Reason for penalty",
-            "amount": 100,
-            "month": "2025-01",
-            "date": "2025-01-15"
-        }
-        """
         serializer = PenaltySerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -71,17 +52,9 @@ class PenaltyListCreateAPI(APIView):
 
 
 class PenaltyDetailAPI(APIView):
-    """
-    Update or delete a specific penalty
-    Accessible by: HR, Accounts, Admin
-    """
     permission_classes = [IsHROrAccountsOrAdmin]
     
     def get(self, request, pk):
-        """
-        GET /api/penalties/<id>/
-        Get details of a specific penalty
-        """
         try:
             penalty = Penalty.objects.get(pk=pk)
         except Penalty.DoesNotExist:
@@ -94,10 +67,6 @@ class PenaltyDetailAPI(APIView):
         return Response(serializer.data)
     
     def put(self, request, pk):
-        """
-        PUT /api/penalties/<id>/
-        Update a penalty
-        """
         try:
             penalty = Penalty.objects.get(pk=pk)
         except Penalty.DoesNotExist:
@@ -113,10 +82,6 @@ class PenaltyDetailAPI(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
-        """
-        DELETE /api/penalties/<id>/
-        Delete a penalty
-        """
         try:
             penalty = Penalty.objects.get(pk=pk)
         except Penalty.DoesNotExist:
@@ -132,23 +97,13 @@ class PenaltyDetailAPI(APIView):
         )
 
 
-# ===== ATTENDANCE APIs =====
-
+# ATTENDANCE APIs 
 class AttendanceDocumentAPI(APIView):
-    """
-    List all attendance documents or upload a new one
-    Accessible by: HR only
-    """
+
     permission_classes = [IsHR]
     
     def get(self, request):
-        """
-        GET /api/attendance/
-        Query params:
-        - month: Filter by month
-        """
         docs = AttendanceDocument.objects.all()
-        
         month = request.GET.get("month")
         if month:
             docs = docs.filter(month=month)
@@ -160,15 +115,6 @@ class AttendanceDocumentAPI(APIView):
         })
     
     def post(self, request):
-        """
-        POST /api/attendance/
-        Body: {
-            "name": "January 2025 Attendance",
-            "date": "2025-01-31",
-            "month": "2025-01",
-            "document": <file>
-        }
-        """
         serializer = AttendanceDocumentSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -176,15 +122,10 @@ class AttendanceDocumentAPI(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+
 class AttendanceDocumentDeleteAPI(APIView):
-    """
-    Delete an attendance document
-    Accessible by: HR only
-    """
-    permission_classes = [IsHR]
-    
+    permission_classes = [IsHR] 
     def get(self, request, pk):
-        """Get specific attendance document"""
         try:
             doc = AttendanceDocument.objects.get(pk=pk)
         except AttendanceDocument.DoesNotExist:
@@ -197,9 +138,6 @@ class AttendanceDocumentDeleteAPI(APIView):
         return Response(serializer.data)
     
     def delete(self, request, pk):
-        """
-        DELETE /api/attendance/<id>/
-        """
         try:
             doc = AttendanceDocument.objects.get(pk=pk)
         except AttendanceDocument.DoesNotExist:
@@ -215,23 +153,11 @@ class AttendanceDocumentDeleteAPI(APIView):
         )
 
 
-# ===== STAFF/EMPLOYEE APIs =====
-
+# STAFF/EMPLOYEE APIs
 class StaffListAPI(APIView):
-    """
-    List all staff/employees
-    Accessible by: HR, Accounts, Admin
-    """
     permission_classes = [IsHROrAccountsOrAdmin]
     
     def get(self, request):
-        """
-        GET /api/employees/
-        Query params:
-        - role: Filter by role
-        - is_active: Filter by active status (true/false)
-        - search: Search by name, username, or email
-        """
         users = User.objects.all()
         
         # Filter by role
@@ -265,16 +191,9 @@ class StaffListAPI(APIView):
 
 
 class StaffDetailAPI(APIView):
-    """
-    Get details of a specific staff member
-    Accessible by: HR, Accounts, Admin
-    """
     permission_classes = [IsHROrAccountsOrAdmin]
     
     def get(self, request, pk):
-        """
-        GET /api/employees/<id>/
-        """
         try:
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
@@ -285,3 +204,81 @@ class StaffDetailAPI(APIView):
         
         serializer = StaffSerializer(user)
         return Response(serializer.data)
+
+
+class CandidateListCreateAPI(APIView):
+    permission_classes = [IsHROrAccountsOrAdmin]
+
+    def get(self, request):
+        status_filter = request.GET.get("status")
+        candidates = Candidate.objects.all()
+
+        if status_filter:
+            candidates = candidates.filter(status=status_filter)
+
+        serializer = CandidateSerializer(candidates, many=True)
+        return Response({
+            "count": candidates.count(),
+            "results": serializer.data
+        })
+
+    def post(self, request):
+        serializer = CandidateSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+
+class CandidateDetailAPI(APIView):
+    permission_classes = [IsHROrAccountsOrAdmin]
+
+    def get(self, request, pk):
+        try:
+            candidate = Candidate.objects.get(pk=pk)
+        except Candidate.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        return Response(CandidateSerializer(candidate).data)
+
+    def put(self, request, pk):
+        candidate = Candidate.objects.get(pk=pk)
+        serializer = CandidateSerializer(candidate, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=400)
+
+    def delete(self, request, pk):
+        candidate = Candidate.objects.get(pk=pk)
+        candidate.delete()
+        return Response(status=204)
+
+
+class CandidateDetailAPI(APIView):
+    permission_classes = [IsHROrAccountsOrAdmin]
+
+    def get(self, request, pk):
+        try:
+            candidate = Candidate.objects.get(pk=pk)
+        except Candidate.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        return Response(CandidateSerializer(candidate).data)
+
+    def put(self, request, pk):
+        candidate = Candidate.objects.get(pk=pk)
+        serializer = CandidateSerializer(candidate, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=400)
+
+    def delete(self, request, pk):
+        candidate = Candidate.objects.get(pk=pk)
+        candidate.delete()
+        return Response(status=204)
