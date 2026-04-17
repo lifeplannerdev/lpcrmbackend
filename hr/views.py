@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model
-from .models import Penalty, AttendanceDocument
+from .models import Penalty, AttendanceDocument, Candidate
 from .serializers import (
     PenaltySerializer, 
     AttendanceDocumentSerializer, 
@@ -256,29 +256,3 @@ class CandidateDetailAPI(APIView):
         candidate.delete()
         return Response(status=204)
 
-
-class CandidateDetailAPI(APIView):
-    permission_classes = [IsHROrAccountsOrAdmin]
-
-    def get(self, request, pk):
-        try:
-            candidate = Candidate.objects.get(pk=pk)
-        except Candidate.DoesNotExist:
-            return Response({"error": "Not found"}, status=404)
-
-        return Response(CandidateSerializer(candidate).data)
-
-    def put(self, request, pk):
-        candidate = Candidate.objects.get(pk=pk)
-        serializer = CandidateSerializer(candidate, data=request.data, partial=True)
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-
-        return Response(serializer.errors, status=400)
-
-    def delete(self, request, pk):
-        candidate = Candidate.objects.get(pk=pk)
-        candidate.delete()
-        return Response(status=204)
